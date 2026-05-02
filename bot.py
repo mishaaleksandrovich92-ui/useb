@@ -8,7 +8,7 @@ api_hash = "7f7e062bcbec01fe3c02c7c898ce3cb7"
 client = TelegramClient("kryin_session", api_id, api_hash)
 
 PREFIX = "."
-VERSION = "9.2 FINAL"
+VERSION = "9.3 FINAL"
 DEV = "@kryin"
 
 mirror = bold = italic = mono = False
@@ -45,41 +45,44 @@ async def commands(event):
     args = text.split()
     cmd = args[0][1:]
 
+    # ===== HELP =====
     if cmd == "help":
         return await event.edit(f"""⚡ Kryin UserBot ⚡
 
-┏━━━━━━━━━━━━━━━━━━━┓
 👑 Версия: {VERSION}
 🤖 Разраб: {DEV}
-┗━━━━━━━━━━━━━━━━━━━┛
 
 📌 ОСНОВА
-└ `.ping`
-└ `.id`
+`.ping`
+`.id`
 
 🌍 ВРЕМЯ
-└ `.time город`
-└ `.timeoff`
-└ `.timelist`
+`.time город`
+`.timeoff`
+`.timelist`
 
 📊 ПРОФИЛЬ
-└ `.clone`
-└ `.back`
+`.clone`
+`.back`
 
 🧠 ГЕНЕРАТОР
-└ `.genpass`
+`.genpass`
+
+🔧 УТИЛИТЫ
+`.calc`
+`.delme`
 
 🔊 МЕДИА
-└ `.tts текст`
+`.tts текст`
 
 ✨ ФОРМАТ
-└ `.mirror on/off`
-└ `.bold on/off`
-└ `.italic on/off`
-└ `.mono on/off`
+`.mirror on/off`
+`.bold on/off`
+`.italic on/off`
+`.mono on/off`
 
 📦 ПЛАГИНЫ
-└ `.install`
+`.install`
 """)
 
     elif cmd == "ping":
@@ -88,6 +91,7 @@ async def commands(event):
     elif cmd == "id":
         await event.edit(f"`{event.chat_id}`")
 
+    # ===== TIME =====
     elif cmd == "time":
         if len(args) < 2:
             return await event.edit("пример: .time msk")
@@ -144,6 +148,7 @@ tokyo, seoul, beijing
 astana, almaty
 """)
 
+    # ===== GENPASS =====
     elif cmd == "genpass":
         try:
             length = int(args[1]) if len(args) > 1 else 12
@@ -155,6 +160,44 @@ astana, almaty
 `{gen_password(length)}`
 """)
 
+    # ===== CALC =====
+    elif cmd == "calc":
+        if len(args) < 2:
+            return await event.edit("пример: .calc 2+2")
+
+        try:
+            expr = text.replace(".calc ", "")
+            result = eval(expr)
+            await event.edit(f"🧮 `{expr}` = `{result}`")
+        except Exception as e:
+            await event.edit(f"❌ ошибка")
+
+    # ===== DELME =====
+    elif cmd == "delme":
+        if len(args) < 2:
+            return await event.edit("пример: .delme 10")
+
+        try:
+            count = int(args[1])
+        except:
+            return await event.edit("❌ число")
+
+        deleted = 0
+
+        async for msg in client.iter_messages(event.chat_id, from_user="me", limit=count+5):
+            try:
+                await msg.delete()
+                deleted += 1
+                if deleted >= count:
+                    break
+            except:
+                pass
+
+        msg = await event.respond(f"🗑 удалено: {deleted}")
+        await asyncio.sleep(2)
+        await msg.delete()
+
+    # ===== TTS =====
     elif cmd == "tts":
         if len(args) < 2:
             return await event.edit("❌ текст")
@@ -166,6 +209,7 @@ astana, almaty
         os.remove("voice.mp3")
         await event.delete()
 
+    # ===== CLONE =====
     elif cmd == "clone":
         if not event.is_reply:
             return await event.edit("ответь на юзера")
@@ -201,6 +245,7 @@ astana, almaty
 
         await event.edit("✅ клонирован")
 
+    # ===== BACK =====
     elif cmd == "back":
         if os.path.exists(BACKUP_FILE):
             with open(BACKUP_FILE, "r", encoding="utf-8") as f:
@@ -217,6 +262,7 @@ astana, almaty
 
         await event.edit("♻️ восстановлено")
 
+    # ===== INSTALL =====
     elif cmd == "install":
         if not event.is_reply:
             return await event.edit("ответь на .py")
@@ -231,6 +277,7 @@ astana, almaty
 
         await event.edit(f"📦 {msg.file.name} установлен")
 
+    # ===== ФОРМАТ =====
     elif cmd == "mirror":
         mirror = args[1] == "on"
         await event.edit(f"mirror {'ON' if mirror else 'OFF'}")
@@ -273,7 +320,7 @@ async def auto_format(event):
             pass
 
 
-print("🔥 Kryin UserBot V9.2 запущен")
+print("🔥 Kryin UserBot V9.3 запущен")
 
 client.start()
 client.run_until_disconnected()
