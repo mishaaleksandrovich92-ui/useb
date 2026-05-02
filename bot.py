@@ -8,152 +8,152 @@ api_hash = "7f7e062bcbec01fe3c02c7c898ce3cb7"
 client = TelegramClient("kryin_session", api_id, api_hash)
 
 PREFIX = "."
-VERSION = "16.0 COPY"
+VERSION = "17.0 FINAL"
 DEV = "@kryin"
 
-mirror = bold = italic = mono = False
-time_task = None
-spam_task = None
 copy_user = None
+spam_task = None
 
-BACKUP_FILE = "profile_backup.txt"
-BACKUP_PHOTO = "profile_backup.jpg"
+def mono(text):
+    return f"`{text}`"
 
-cities = {
-    "msk": 3, "spb": 3, "ekb": 5, "nsk": 7,
-    "ny": -4, "la": -7,
-    "lon": 0, "paris": 1,
-    "tokyo": 9
-}
+# ===== HELP =====
+HELP_TEXT = f"""⚡ Kryin UserBot ⚡
 
-def gen_password(length=12):
-    chars = string.ascii_letters + string.digits
-    return ''.join(random.choice(chars) for _ in range(length))
+👑 Версия: {VERSION}
+🤖 Разраб: {DEV}
 
-def mono(t):
-    return f"`{t}`"
+📌 ОСНОВА
+• {mono(".ping")} • {mono(".id")}
+
+🌍 ВРЕМЯ
+• {mono(".time город")} • {mono(".timeoff")} • {mono(".timelist")}
+
+📊 УТИЛИТЫ
+• {mono(".calc")} • {mono(".delme")}
+
+🧠 ГЕНЕРАТОР
+• {mono(".genpass")}
+
+🔊 МЕДИА
+• {mono(".tts")}
+
+👤 ПРОФИЛЬ
+• {mono(".clone")} • {mono(".back")}
+
+🔥 ФАН
+• {mono(".roll")} • {mono(".coin")} • {mono(".8ball")}
+
+🌍 ПОЛЕЗНОЕ
+• {mono(".weather город")}
+
+💣 СПАМ
+• {mono(".spam текст, число")}
+• {mono(".spamstop")}
+
+📋 КОПИРОВАНИЕ
+• {mono(".copy")} • {mono(".copyoff")}
+
+✨ ФОРМАТ
+• {mono(".mirror")} • {mono(".bold")} • {mono(".italic")} • {mono(".mono")}
+"""
 
 # ===== COMMANDS =====
 @client.on(events.NewMessage(outgoing=True))
 async def commands(event):
-    global mirror, bold, italic, mono, time_task, spam_task, copy_user
+    global copy_user, spam_task
 
     text = event.raw_text
     if not text.startswith(PREFIX):
         return
 
-    args = text.split()
-    cmd = args[0][1:]
+    cmd = text.split()[0][1:]
 
-    # ===== HELP =====
+    # HELP
     if cmd == "help":
-        return await event.edit(f"""⚡ Kryin UserBot
+        return await event.edit(HELP_TEXT)
 
-Версия: {VERSION}
-Разраб: {DEV}
-
-ОСНОВА
-` .ping ` ` .id `
-
-ВРЕМЯ
-` .time ` ` .timeoff ` ` .timelist `
-
-УТИЛИТЫ
-` .calc ` ` .delme `
-
-ГЕНЕРАТОР
-` .genpass `
-
-МЕДИА
-` .tts `
-
-ПРОФИЛЬ
-` .clone ` ` .back `
-
-ФАН
-` .roll ` ` .coin ` ` .8ball `
-
-ПОЛЕЗНОЕ
-` .weather `
-
-СПАМ
-` .spam ` ` .spamstop `
-
-КОПИРОВАНИЕ
-` .copy ` ` .copyoff `
-
-ФОРМАТ
-` .mirror ` ` .bold ` ` .italic ` ` .mono `
-""")
-
+    # BASIC
     elif cmd == "ping":
         await event.edit(mono("pong"))
 
     elif cmd == "id":
         await event.edit(mono(str(event.chat_id)))
 
-    # ===== COPY =====
+    # COPY
     elif cmd == "copy":
         if not event.is_reply:
             return await event.edit(mono("ответь на юзера"))
 
         reply = await event.get_reply_message()
         copy_user = reply.sender_id
-
         await event.edit(mono("copy ON"))
 
     elif cmd == "copyoff":
         copy_user = None
         await event.edit(mono("copy OFF"))
 
-    # ===== GENPASS =====
+    # GENPASS
     elif cmd == "genpass":
-        await event.edit(mono(gen_password()))
+        pw = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(12))
+        await event.edit(mono(pw))
 
-    # ===== ROLL =====
+    # FUN
     elif cmd == "roll":
-        await event.edit(mono(str(random.randint(1,100))))
+        await event.edit(mono(str(random.randint(1, 100))))
 
     elif cmd == "coin":
-        await event.edit(mono(random.choice(["орёл","решка"])))
+        await event.edit(mono(random.choice(["орёл", "решка"])))
 
     elif cmd == "8ball":
         await event.edit(mono(random.choice([
-            "да","нет","возможно","позже"
+            "да", "нет", "возможно", "позже"
         ])))
 
-    # ===== WEATHER =====
+    # WEATHER (FIX)
     elif cmd == "weather":
         try:
-            data = requests.get(f"https://wttr.in/{args[1]}?format=3").text
+            city = text.split(maxsplit=1)[1]
+            url = f"https://wttr.in/{city}?format=%l:+%c+%t"
+            data = requests.get(url).text
             await event.edit(mono(data))
         except:
-            await event.edit(mono("error"))
+            await event.edit(mono("ошибка"))
 
-    # ===== SPAM =====
+    # SPAM (НОВЫЙ ФОРМАТ)
     elif cmd == "spam":
-        if args[1].isdigit():
-            count = int(args[1])
-            msg = " ".join(args[2:])
-            await event.delete()
-            for _ in range(count):
-                await client.send_message(event.chat_id, msg)
-                await asyncio.sleep(0.3)
-        else:
-            msg = " ".join(args[1:])
-            await event.delete()
+        try:
+            content = text[len(".spam "):]
 
-            async def loop():
-                while True:
+            if "," in content:
+                msg, count = content.rsplit(",", 1)
+                msg = msg.strip()
+                count = int(count.strip())
+
+                await event.delete()
+                for _ in range(count):
                     await client.send_message(event.chat_id, msg)
                     await asyncio.sleep(0.3)
 
-            spam_task = asyncio.create_task(loop())
+            else:
+                msg = content
+                await event.delete()
+
+                async def loop():
+                    while True:
+                        await client.send_message(event.chat_id, msg)
+                        await asyncio.sleep(0.3)
+
+                spam_task = asyncio.create_task(loop())
+
+        except:
+            await event.edit(mono("ошибка spam"))
 
     elif cmd == "spamstop":
         if spam_task:
             spam_task.cancel()
-            await event.edit(mono("stopped"))
+            spam_task = None
+            await event.edit(mono("стоп"))
 
 # ===== COPY HANDLER =====
 @client.on(events.NewMessage(incoming=True))
@@ -161,12 +161,10 @@ async def copier(event):
     global copy_user
 
     if copy_user and event.sender_id == copy_user:
-        try:
+        if event.text:
             await event.respond(event.text)
-        except:
-            pass
 
-print("🔥 Kryin UserBot V16 запущен")
+print("🔥 Kryin UserBot V17 запущен")
 
 client.start()
 client.run_until_disconnected()
