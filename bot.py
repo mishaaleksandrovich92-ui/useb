@@ -1,6 +1,6 @@
 from telethon import TelegramClient, events, functions
 from gtts import gTTS
-import random, string, os, datetime, asyncio
+import random, string, os, datetime, asyncio, requests
 
 api_id = 27557328
 api_hash = "7f7e062bcbec01fe3c02c7c898ce3cb7"
@@ -8,11 +8,12 @@ api_hash = "7f7e062bcbec01fe3c02c7c898ce3cb7"
 client = TelegramClient("kryin_session", api_id, api_hash)
 
 PREFIX = "."
-VERSION = "12.0 NO-PLUGINS"
+VERSION = "14.0 FULL"
 DEV = "@kryin"
 
 mirror = bold = italic = mono = False
 time_task = None
+spam_task = None
 
 BACKUP_FILE = "profile_backup.txt"
 BACKUP_PHOTO = "profile_backup.jpg"
@@ -33,7 +34,7 @@ def gen_password(length=12):
 
 @client.on(events.NewMessage(outgoing=True))
 async def commands(event):
-    global mirror, bold, italic, mono, time_task
+    global mirror, bold, italic, mono, time_task, spam_task
 
     text = event.raw_text
     if not text.startswith(PREFIX):
@@ -50,33 +51,34 @@ async def commands(event):
 🤖 Разраб: {DEV}
 
 📌 ОСНОВА
-• `.ping` — проверка
-• `.id` — id чата
+• .ping • .id
 
 🌍 ВРЕМЯ
-• `.time город` — время в ник
-• `.timeoff` — выключить
-• `.timelist` — список
+• .time город • .timeoff • .timelist
 
 📊 УТИЛИТЫ
-• `.calc 2+2` — калькулятор
-• `.delme 10` — удалить свои
+• .calc • .delme
 
 🧠 ГЕНЕРАТОР
-• `.genpass` — пароль
+• .genpass
 
 🔊 МЕДИА
-• `.tts текст` — озвучка
+• .tts
 
 👤 ПРОФИЛЬ
-• `.clone` — копировать
-• `.back` — вернуть
+• .clone • .back
+
+🔥 ФАН
+• .roll • .coin • .8ball
+
+🌍 ПОЛЕЗНОЕ
+• .weather
+
+💣 СПАМ
+• .spam • .spamstop
 
 ✨ ФОРМАТ
-• `.mirror on/off`
-• `.bold on/off`
-• `.italic on/off`
-• `.mono on/off`
+• .mirror • .bold • .italic • .mono
 """)
 
     elif cmd == "ping":
@@ -135,12 +137,8 @@ async def commands(event):
 
     # ===== GENPASS =====
     elif cmd == "genpass":
-        try:
-            length = int(args[1]) if len(args) > 1 else 12
-        except:
-            length = 12
-
-        await event.edit(f"🔐 пароль:\n`{gen_password(length)}`")
+        length = int(args[1]) if len(args) > 1 else 12
+        await event.edit(f"🔐\n`{gen_password(length)}`")
 
     # ===== CALC =====
     elif cmd == "calc":
@@ -153,14 +151,7 @@ async def commands(event):
 
     # ===== DELME =====
     elif cmd == "delme":
-        if len(args) < 2:
-            return await event.edit("пример: .delme 10")
-
-        try:
-            count = int(args[1])
-        except:
-            return await event.edit("❌ число")
-
+        count = int(args[1])
         deleted = 0
 
         async for msg in client.iter_messages(event.chat_id, from_user="me"):
@@ -172,18 +163,14 @@ async def commands(event):
             except:
                 pass
 
-        m = await event.respond(f"🗑 удалено: {deleted}")
+        m = await event.respond(f"🗑 {deleted}")
         await asyncio.sleep(2)
         await m.delete()
 
     # ===== TTS =====
     elif cmd == "tts":
-        if len(args) < 2:
-            return await event.edit("❌ текст")
-
         t = gTTS(text.replace(".tts ", ""), lang="ru")
         t.save("voice.mp3")
-
         await client.send_file(event.chat_id, "voice.mp3")
         os.remove("voice.mp3")
         await event.delete()
@@ -191,11 +178,11 @@ async def commands(event):
     # ===== CLONE =====
     elif cmd == "clone":
         if not event.is_reply:
-            return await event.edit("ответь на юзера")
+            return await event.edit("ответь")
 
         me = await client.get_me()
 
-        with open(BACKUP_FILE, "w", encoding="utf-8") as f:
+        with open(BACKUP_FILE, "w") as f:
             f.write(f"{me.first_name}|{me.last_name or ''}")
 
         try:
@@ -222,12 +209,12 @@ async def commands(event):
         except:
             pass
 
-        await event.edit("✅ клонирован")
+        await event.edit("✅ cloned")
 
     # ===== BACK =====
     elif cmd == "back":
         if os.path.exists(BACKUP_FILE):
-            with open(BACKUP_FILE, "r", encoding="utf-8") as f:
+            with open(BACKUP_FILE) as f:
                 data = f.read().split("|")
 
             await client(functions.account.UpdateProfileRequest(
@@ -239,24 +226,73 @@ async def commands(event):
             file = await client.upload_file(BACKUP_PHOTO)
             await client(functions.photos.UploadProfilePhotoRequest(file=file))
 
-        await event.edit("♻️ восстановлено")
+        await event.edit("♻️ restored")
+
+    # ===== FUN =====
+    elif cmd == "roll":
+        await event.edit(f"🎲 {random.randint(1,100)}")
+
+    elif cmd == "coin":
+        await event.edit(random.choice(["🪙 Орёл", "🪙 Решка"]))
+
+    elif cmd == "8ball":
+        await event.edit("🎱 " + random.choice([
+            "Да", "Нет", "Скорее да", "Скорее нет",
+            "Возможно", "Не думаю", "100%", "Позже"
+        ]))
+
+    # ===== WEATHER =====
+    elif cmd == "weather":
+        city = args[1]
+        try:
+            data = requests.get(f"https://wttr.in/{city}?format=3").text
+            await event.edit(f"🌤 {data}")
+        except:
+            await event.edit("❌ ошибка")
+
+    # ===== SPAM =====
+    elif cmd == "spam":
+        if args[1].isdigit():
+            count = int(args[1])
+            msg = " ".join(args[2:])
+            await event.delete()
+
+            for _ in range(count):
+                await client.send_message(event.chat_id, msg)
+                await asyncio.sleep(0.3)
+        else:
+            msg = " ".join(args[1:])
+            await event.delete()
+
+            async def loop():
+                while True:
+                    await client.send_message(event.chat_id, msg)
+                    await asyncio.sleep(0.3)
+
+            spam_task = asyncio.create_task(loop())
+
+    elif cmd == "spamstop":
+        if spam_task:
+            spam_task.cancel()
+            spam_task = None
+            await event.edit("🛑 стоп")
 
     # ===== FORMAT =====
     elif cmd == "mirror":
         mirror = args[1] == "on"
-        await event.edit(f"mirror {'ON' if mirror else 'OFF'}")
+        await event.edit(f"mirror {mirror}")
 
     elif cmd == "bold":
         bold = args[1] == "on"
-        await event.edit(f"bold {'ON' if bold else 'OFF'}")
+        await event.edit(f"bold {bold}")
 
     elif cmd == "italic":
         italic = args[1] == "on"
-        await event.edit(f"italic {'ON' if italic else 'OFF'}")
+        await event.edit(f"italic {italic}")
 
     elif cmd == "mono":
         mono = args[1] == "on"
-        await event.edit(f"mono {'ON' if mono else 'OFF'}")
+        await event.edit(f"mono {mono}")
 
 
 @client.on(events.NewMessage(outgoing=True))
@@ -284,7 +320,7 @@ async def auto_format(event):
             pass
 
 
-print("🔥 Kryin UserBot V12 запущен")
+print("🔥 Kryin UserBot V14 запущен")
 
 client.start()
 client.run_until_disconnected()
