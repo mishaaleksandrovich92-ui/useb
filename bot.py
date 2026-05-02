@@ -8,46 +8,32 @@ api_hash = "7f7e062bcbec01fe3c02c7c898ce3cb7"
 client = TelegramClient("kryin_session", api_id, api_hash)
 
 PREFIX = "."
-VERSION = "9.0 FINAL"
+VERSION = "9.2 FINAL"
 DEV = "@kryin"
 
 mirror = bold = italic = mono = False
 time_task = None
 
-# ===== BACKUP =====
 BACKUP_FILE = "profile_backup.txt"
 BACKUP_PHOTO = "profile_backup.jpg"
 
-# ===== ПАПКА ПЛАГИНОВ =====
 if not os.path.exists("plugins"):
     os.mkdir("plugins")
 
-# ===== ГОРОДА =====
 cities = {
-    "msk": 3, "spb": 3,
-    "ekb": 5, "nsk": 7,
-    "kras": 7, "vlad": 10,
-
+    "msk": 3, "spb": 3, "ekb": 5, "nsk": 7, "kras": 7, "vlad": 10,
     "kiev": 2, "minsk": 3,
-
     "ny": -4, "la": -7, "chi": -5,
-
-    "lon": 0, "paris": 1, "berlin": 1,
-    "rome": 1, "madrid": 1,
-
+    "lon": 0, "paris": 1, "berlin": 1, "rome": 1, "madrid": 1,
     "dubai": 4, "delhi": 5.5,
-
     "tokyo": 9, "seoul": 9, "beijing": 8,
-
     "astana": 6, "almaty": 6
 }
 
-# ===== ГЕНЕРАТОР =====
 def gen_password(length=12):
     chars = string.ascii_letters + string.digits
     return ''.join(random.choice(chars) for _ in range(length))
 
-# ===== КОМАНДЫ =====
 @client.on(events.NewMessage(outgoing=True))
 async def commands(event):
     global mirror, bold, italic, mono, time_task
@@ -59,7 +45,6 @@ async def commands(event):
     args = text.split()
     cmd = args[0][1:]
 
-    # ===== HELP =====
     if cmd == "help":
         return await event.edit(f"""⚡ Kryin UserBot ⚡
 
@@ -87,6 +72,12 @@ async def commands(event):
 🔊 МЕДИА
 └ `.tts текст`
 
+✨ ФОРМАТ
+└ `.mirror on/off`
+└ `.bold on/off`
+└ `.italic on/off`
+└ `.mono on/off`
+
 📦 ПЛАГИНЫ
 └ `.install`
 """)
@@ -97,7 +88,6 @@ async def commands(event):
     elif cmd == "id":
         await event.edit(f"`{event.chat_id}`")
 
-    # ===== TIME =====
     elif cmd == "time":
         if len(args) < 2:
             return await event.edit("пример: .time msk")
@@ -129,7 +119,6 @@ async def commands(event):
                     pass
 
         time_task = asyncio.create_task(update_name())
-
         await event.edit(f"🕒 время включено: {city}")
 
     elif cmd == "timeoff":
@@ -140,51 +129,32 @@ async def commands(event):
         me = await client.get_me()
         name = me.first_name.split(" [")[0]
 
-        await client(functions.account.UpdateProfileRequest(
-            first_name=name
-        ))
-
+        await client(functions.account.UpdateProfileRequest(first_name=name))
         await event.edit("❌ время выключено")
 
     elif cmd == "timelist":
-        await event.edit("""🌍 Доступные города:
+        await event.edit("""🌍 Города:
 
-🇷🇺 Россия
 msk, spb, ekb, nsk, kras, vlad
-
-🇺🇦🇧🇾
 kiev, minsk
-
-🇺🇸 США
 ny, la, chi
-
-🇪🇺 Европа
 lon, paris, berlin, rome, madrid
-
-🌏 Азия
-dubai, delhi, tokyo, seoul, beijing
-
-🇰🇿 Казахстан
+dubai, delhi
+tokyo, seoul, beijing
 astana, almaty
 """)
 
-    # ===== GENPASS =====
     elif cmd == "genpass":
         try:
             length = int(args[1]) if len(args) > 1 else 12
         except:
             length = 12
 
-        password = gen_password(length)
-
         await event.edit(f"""🔐 Пароль
 
-┏━━━━━━━━━━━━━━━┓
-`{password}`
-┗━━━━━━━━━━━━━━━┛
+`{gen_password(length)}`
 """)
 
-    # ===== TTS =====
     elif cmd == "tts":
         if len(args) < 2:
             return await event.edit("❌ текст")
@@ -196,7 +166,6 @@ astana, almaty
         os.remove("voice.mp3")
         await event.delete()
 
-    # ===== CLONE =====
     elif cmd == "clone":
         if not event.is_reply:
             return await event.edit("ответь на юзера")
@@ -230,9 +199,8 @@ astana, almaty
         except:
             pass
 
-        await event.edit("✅ клонирован (бэкап сохранён)")
+        await event.edit("✅ клонирован")
 
-    # ===== BACK =====
     elif cmd == "back":
         if os.path.exists(BACKUP_FILE):
             with open(BACKUP_FILE, "r", encoding="utf-8") as f:
@@ -247,9 +215,8 @@ astana, almaty
             file = await client.upload_file(BACKUP_PHOTO)
             await client(functions.photos.UploadProfilePhotoRequest(file=file))
 
-        await event.edit("♻️ профиль восстановлен")
+        await event.edit("♻️ восстановлено")
 
-    # ===== INSTALL =====
     elif cmd == "install":
         if not event.is_reply:
             return await event.edit("ответь на .py")
@@ -257,14 +224,13 @@ astana, almaty
         msg = await event.get_reply_message()
 
         if not msg.file or not msg.file.name.endswith(".py"):
-            return await event.edit("это не .py")
+            return await event.edit("не .py")
 
         path = f"plugins/{msg.file.name}"
         await msg.download_media(path)
 
-        await event.edit(f"📦 установлен: {msg.file.name}")
+        await event.edit(f"📦 {msg.file.name} установлен")
 
-    # ===== ФОРМАТ =====
     elif cmd == "mirror":
         mirror = args[1] == "on"
         await event.edit(f"mirror {'ON' if mirror else 'OFF'}")
@@ -282,26 +248,32 @@ astana, almaty
         await event.edit(f"mono {'ON' if mono else 'OFF'}")
 
 
-# ===== АВТОФОРМАТ =====
-@client.on(events.NewMessage)
+@client.on(events.NewMessage(outgoing=True))
 async def auto_format(event):
-    if event.out and not event.raw_text.startswith(PREFIX):
-        txt = event.raw_text
+    text = event.raw_text
 
-        if mirror:
-            txt = txt[::-1]
-        if bold:
-            txt = f"**{txt}**"
-        if italic:
-            txt = f"__{txt}__"
-        if mono:
-            txt = f"`{txt}`"
+    if text.startswith(PREFIX):
+        return
 
-        if txt != event.raw_text:
-            await event.edit(txt)
+    new = text
+
+    if mirror:
+        new = new[::-1]
+    if bold:
+        new = f"**{new}**"
+    if italic:
+        new = f"__{new}__"
+    if mono:
+        new = f"`{new}`"
+
+    if new != text:
+        try:
+            await event.edit(new)
+        except:
+            pass
 
 
-print("🔥 Kryin UserBot V9 FINAL запущен")
+print("🔥 Kryin UserBot V9.2 запущен")
 
 client.start()
 client.run_until_disconnected()
