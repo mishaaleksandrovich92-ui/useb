@@ -1,6 +1,6 @@
 from telethon import TelegramClient, events, functions
 from gtts import gTTS
-import random, string, os, datetime
+import random, string, os, datetime, asyncio
 
 api_id = 27557328
 api_hash = "7f7e062bcbec01fe3c02c7c898ce3cb7"
@@ -8,39 +8,49 @@ api_hash = "7f7e062bcbec01fe3c02c7c898ce3cb7"
 client = TelegramClient("kryin_session", api_id, api_hash)
 
 PREFIX = "."
-VERSION = "8.0 PRO"
+VERSION = "9.0 FINAL"
 DEV = "@kryin"
 
 mirror = bold = italic = mono = False
+time_task = None
 
 # ===== BACKUP =====
 BACKUP_FILE = "profile_backup.txt"
 BACKUP_PHOTO = "profile_backup.jpg"
 
-# ===== ПЛАГИНЫ =====
+# ===== ПАПКА ПЛАГИНОВ =====
 if not os.path.exists("plugins"):
     os.mkdir("plugins")
+
+# ===== ГОРОДА =====
+cities = {
+    "msk": 3, "spb": 3,
+    "ekb": 5, "nsk": 7,
+    "kras": 7, "vlad": 10,
+
+    "kiev": 2, "minsk": 3,
+
+    "ny": -4, "la": -7, "chi": -5,
+
+    "lon": 0, "paris": 1, "berlin": 1,
+    "rome": 1, "madrid": 1,
+
+    "dubai": 4, "delhi": 5.5,
+
+    "tokyo": 9, "seoul": 9, "beijing": 8,
+
+    "astana": 6, "almaty": 6
+}
 
 # ===== ГЕНЕРАТОР =====
 def gen_password(length=12):
     chars = string.ascii_letters + string.digits
     return ''.join(random.choice(chars) for _ in range(length))
 
-# ===== ВРЕМЯ =====
-cities = {
-    "msk": 3,
-    "kiev": 2,
-    "ny": -4,
-    "ekb": 5
-}
-
-def get_time(offset):
-    return datetime.datetime.utcnow() + datetime.timedelta(hours=offset)
-
 # ===== КОМАНДЫ =====
 @client.on(events.NewMessage(outgoing=True))
 async def commands(event):
-    global mirror, bold, italic, mono
+    global mirror, bold, italic, mono, time_task
 
     text = event.raw_text
     if not text.startswith(PREFIX):
@@ -62,8 +72,9 @@ async def commands(event):
 └ `.ping`
 └ `.id`
 
-🌍 СЕРВИСЫ
+🌍 ВРЕМЯ
 └ `.time город`
+└ `.timeoff`
 └ `.timelist`
 
 📊 ПРОФИЛЬ
@@ -95,14 +106,67 @@ async def commands(event):
         if city not in cities:
             return await event.edit("нет такого города")
 
-        now = get_time(cities[city])
-        await event.edit(f"🕒 {city.upper()} → {now.strftime('%H:%M:%S')}")
+        offset = cities[city]
+
+        if time_task:
+            time_task.cancel()
+
+        async def update_name():
+            while True:
+                try:
+                    now = datetime.datetime.utcnow() + datetime.timedelta(hours=offset)
+                    t = now.strftime("[%H:%M]")
+
+                    me = await client.get_me()
+                    name = me.first_name.split(" [")[0]
+
+                    await client(functions.account.UpdateProfileRequest(
+                        first_name=f"{name} {t}"
+                    ))
+
+                    await asyncio.sleep(60)
+                except:
+                    pass
+
+        time_task = asyncio.create_task(update_name())
+
+        await event.edit(f"🕒 время включено: {city}")
+
+    elif cmd == "timeoff":
+        if time_task:
+            time_task.cancel()
+            time_task = None
+
+        me = await client.get_me()
+        name = me.first_name.split(" [")[0]
+
+        await client(functions.account.UpdateProfileRequest(
+            first_name=name
+        ))
+
+        await event.edit("❌ время выключено")
 
     elif cmd == "timelist":
-        txt = "🌍 Города:\n\n"
-        for c in cities:
-            txt += f"• {c}\n"
-        await event.edit(txt)
+        await event.edit("""🌍 Доступные города:
+
+🇷🇺 Россия
+msk, spb, ekb, nsk, kras, vlad
+
+🇺🇦🇧🇾
+kiev, minsk
+
+🇺🇸 США
+ny, la, chi
+
+🇪🇺 Европа
+lon, paris, berlin, rome, madrid
+
+🌏 Азия
+dubai, delhi, tokyo, seoul, beijing
+
+🇰🇿 Казахстан
+astana, almaty
+""")
 
     # ===== GENPASS =====
     elif cmd == "genpass":
@@ -116,7 +180,7 @@ async def commands(event):
         await event.edit(f"""🔐 Пароль
 
 ┏━━━━━━━━━━━━━━━┓
-{password}
+`{password}`
 ┗━━━━━━━━━━━━━━━┛
 """)
 
@@ -139,11 +203,9 @@ async def commands(event):
 
         me = await client.get_me()
 
-        # --- backup name ---
         with open(BACKUP_FILE, "w", encoding="utf-8") as f:
             f.write(f"{me.first_name}|{me.last_name or ''}")
 
-        # --- backup photo ---
         try:
             photo = await client.download_profile_photo(me)
             if photo:
@@ -151,7 +213,6 @@ async def commands(event):
         except:
             pass
 
-        # --- clone ---
         reply = await event.get_reply_message()
         user = await client.get_entity(reply.sender_id)
 
@@ -240,7 +301,7 @@ async def auto_format(event):
             await event.edit(txt)
 
 
-print("🔥 Kryin UserBot V8 PRO запущен")
+print("🔥 Kryin UserBot V9 FINAL запущен")
 
 client.start()
 client.run_until_disconnected()
