@@ -1,7 +1,6 @@
 from telethon import TelegramClient, events, functions
 from gtts import gTTS
 import random, string, os, datetime, asyncio
-import importlib.util
 
 api_id = 27557328
 api_hash = "7f7e062bcbec01fe3c02c7c898ce3cb7"
@@ -9,67 +8,34 @@ api_hash = "7f7e062bcbec01fe3c02c7c898ce3cb7"
 client = TelegramClient("kryin_session", api_id, api_hash)
 
 PREFIX = "."
-VERSION = "11.0"
+VERSION = "12.0 NO-PLUGINS"
 DEV = "@kryin"
 
-loaded_plugins = {}   # name -> module
-plugin_list = []      # список по номерам
+mirror = bold = italic = mono = False
+time_task = None
 
-if not os.path.exists("plugins"):
-    os.mkdir("plugins")
+BACKUP_FILE = "profile_backup.txt"
+BACKUP_PHOTO = "profile_backup.jpg"
 
-# ========= LOAD =========
-def load_plugin(path):
-    name = os.path.basename(path).replace(".py", "")
+cities = {
+    "msk": 3, "spb": 3, "ekb": 5, "nsk": 7, "kras": 7, "vlad": 10,
+    "kiev": 2, "minsk": 3,
+    "ny": -4, "la": -7, "chi": -5,
+    "lon": 0, "paris": 1, "berlin": 1, "rome": 1, "madrid": 1,
+    "dubai": 4, "delhi": 5.5,
+    "tokyo": 9, "seoul": 9, "beijing": 8,
+    "astana": 6, "almaty": 6
+}
 
-    spec = importlib.util.spec_from_file_location(name, path)
-    module = importlib.util.module_from_spec(spec)
-
-    try:
-        spec.loader.exec_module(module)
-
-        if hasattr(module, "register"):
-            module.register(client)
-
-        loaded_plugins[name] = module
-
-        if name not in plugin_list:
-            plugin_list.append(name)
-
-        return True, name
-    except Exception as e:
-        return False, str(e)
-
-# ========= RELOAD =========
-def reload_plugin(name):
-    path = f"plugins/{name}.py"
-
-    if not os.path.exists(path):
-        return False, "нет файла"
-
-    try:
-        if name in loaded_plugins:
-            del loaded_plugins[name]
-
-        return load_plugin(path)
-    except Exception as e:
-        return False, str(e)
-
-# ========= AUTOSTART =========
-for file in os.listdir("plugins"):
-    if file.endswith(".py"):
-        load_plugin(f"plugins/{file}")
-
-# ========= PASSWORD =========
 def gen_password(length=12):
     chars = string.ascii_letters + string.digits
     return ''.join(random.choice(chars) for _ in range(length))
 
-# ========= COMMANDS =========
 @client.on(events.NewMessage(outgoing=True))
 async def commands(event):
-    text = event.raw_text
+    global mirror, bold, italic, mono, time_task
 
+    text = event.raw_text
     if not text.startswith(PREFIX):
         return
 
@@ -78,119 +44,123 @@ async def commands(event):
 
     # ===== HELP =====
     if cmd == "help":
-        txt = f"""⚡ Kryin UserBot
+        return await event.edit(f"""⚡ Kryin UserBot ⚡
 
 👑 Версия: {VERSION}
 🤖 Разраб: {DEV}
 
-📦 ПЛАГИНЫ
-.plugins
-.install
-.reinstall
-.uninstall
+📌 ОСНОВА
+• `.ping` — проверка
+• `.id` — id чата
 
-🧠 ПРОЧЕЕ
-.genpass
-.calc
-.delme
-"""
-        return await event.edit(txt)
+🌍 ВРЕМЯ
+• `.time город` — время в ник
+• `.timeoff` — выключить
+• `.timelist` — список
 
-    # ===== PLUGINS =====
-    elif cmd == "plugins":
-        if not plugin_list:
-            return await event.edit("📦 плагинов нет")
+📊 УТИЛИТЫ
+• `.calc 2+2` — калькулятор
+• `.delme 10` — удалить свои
 
-        text = "📦 список плагинов:\n\n"
+🧠 ГЕНЕРАТОР
+• `.genpass` — пароль
 
-        for i, name in enumerate(plugin_list, 1):
-            text += f"{i}. {name}\n"
+🔊 МЕДИА
+• `.tts текст` — озвучка
 
-        return await event.edit(text)
+👤 ПРОФИЛЬ
+• `.clone` — копировать
+• `.back` — вернуть
 
-    # ===== INSTALL =====
-    elif cmd == "install":
-        if not event.is_reply:
-            return await event.edit("ответь на .py")
+✨ ФОРМАТ
+• `.mirror on/off`
+• `.bold on/off`
+• `.italic on/off`
+• `.mono on/off`
+""")
 
-        msg = await event.get_reply_message()
+    elif cmd == "ping":
+        await event.edit("🏓 Pong")
 
-        if not msg.file or not msg.file.name.endswith(".py"):
-            return await event.edit("это не .py")
+    elif cmd == "id":
+        await event.edit(f"`{event.chat_id}`")
 
-        path = f"plugins/{msg.file.name}"
-        await msg.download_media(path)
-
-        ok, info = load_plugin(path)
-
-        if ok:
-            await event.edit(f"✅ установлен: {info}")
-        else:
-            await event.edit(f"❌ ошибка:\n{info}")
-
-    # ===== REINSTALL =====
-    elif cmd == "reinstall":
+    # ===== TIME =====
+    elif cmd == "time":
         if len(args) < 2:
-            return await event.edit("номер")
+            return await event.edit("пример: .time msk")
 
-        try:
-            num = int(args[1]) - 1
-            name = plugin_list[num]
-        except:
-            return await event.edit("ошибка номера")
+        city = args[1].lower()
+        if city not in cities:
+            return await event.edit("нет города")
 
-        ok, info = reload_plugin(name)
+        offset = cities[city]
 
-        if ok:
-            await event.edit(f"🔄 перезагружен: {name}")
-        else:
-            await event.edit(f"❌ {info}")
+        if time_task:
+            time_task.cancel()
 
-    # ===== UNINSTALL =====
-    elif cmd == "uninstall":
-        if len(args) < 2:
-            return await event.edit("номер")
+        async def update_name():
+            while True:
+                try:
+                    now = datetime.datetime.utcnow() + datetime.timedelta(hours=offset)
+                    t = now.strftime("[%H:%M]")
 
-        try:
-            num = int(args[1]) - 1
-            name = plugin_list[num]
-        except:
-            return await event.edit("ошибка")
+                    me = await client.get_me()
+                    name = me.first_name.split(" [")[0]
 
-        path = f"plugins/{name}.py"
+                    await client(functions.account.UpdateProfileRequest(
+                        first_name=f"{name} {t}"
+                    ))
 
-        try:
-            os.remove(path)
-        except:
-            pass
+                    await asyncio.sleep(60)
+                except:
+                    pass
 
-        if name in loaded_plugins:
-            del loaded_plugins[name]
+        time_task = asyncio.create_task(update_name())
+        await event.edit(f"🕒 {city}")
 
-        plugin_list.remove(name)
+    elif cmd == "timeoff":
+        if time_task:
+            time_task.cancel()
+            time_task = None
 
-        await event.edit(f"🗑 удален: {name}")
+        me = await client.get_me()
+        name = me.first_name.split(" [")[0]
+
+        await client(functions.account.UpdateProfileRequest(first_name=name))
+        await event.edit("❌ off")
+
+    elif cmd == "timelist":
+        await event.edit(", ".join(cities.keys()))
 
     # ===== GENPASS =====
     elif cmd == "genpass":
-        length = int(args[1]) if len(args) > 1 else 12
-        return await event.edit(f"🔐 `{gen_password(length)}`")
+        try:
+            length = int(args[1]) if len(args) > 1 else 12
+        except:
+            length = 12
+
+        await event.edit(f"🔐 пароль:\n`{gen_password(length)}`")
 
     # ===== CALC =====
     elif cmd == "calc":
         try:
             expr = text.replace(".calc ", "")
             result = eval(expr)
-            await event.edit(f"`{expr}` = `{result}`")
+            await event.edit(f"🧮 `{expr}` = `{result}`")
         except:
             await event.edit("❌ ошибка")
 
     # ===== DELME =====
     elif cmd == "delme":
         if len(args) < 2:
-            return await event.edit("число")
+            return await event.edit("пример: .delme 10")
 
-        count = int(args[1])
+        try:
+            count = int(args[1])
+        except:
+            return await event.edit("❌ число")
+
         deleted = 0
 
         async for msg in client.iter_messages(event.chat_id, from_user="me"):
@@ -206,8 +176,115 @@ async def commands(event):
         await asyncio.sleep(2)
         await m.delete()
 
+    # ===== TTS =====
+    elif cmd == "tts":
+        if len(args) < 2:
+            return await event.edit("❌ текст")
 
-print("🔥 Kryin UserBot V11 запущен")
+        t = gTTS(text.replace(".tts ", ""), lang="ru")
+        t.save("voice.mp3")
+
+        await client.send_file(event.chat_id, "voice.mp3")
+        os.remove("voice.mp3")
+        await event.delete()
+
+    # ===== CLONE =====
+    elif cmd == "clone":
+        if not event.is_reply:
+            return await event.edit("ответь на юзера")
+
+        me = await client.get_me()
+
+        with open(BACKUP_FILE, "w", encoding="utf-8") as f:
+            f.write(f"{me.first_name}|{me.last_name or ''}")
+
+        try:
+            photo = await client.download_profile_photo(me)
+            if photo:
+                os.rename(photo, BACKUP_PHOTO)
+        except:
+            pass
+
+        reply = await event.get_reply_message()
+        user = await client.get_entity(reply.sender_id)
+
+        await client(functions.account.UpdateProfileRequest(
+            first_name=user.first_name,
+            last_name=user.last_name
+        ))
+
+        try:
+            photo = await client.download_profile_photo(user)
+            if photo:
+                file = await client.upload_file(photo)
+                await client(functions.photos.UploadProfilePhotoRequest(file=file))
+                os.remove(photo)
+        except:
+            pass
+
+        await event.edit("✅ клонирован")
+
+    # ===== BACK =====
+    elif cmd == "back":
+        if os.path.exists(BACKUP_FILE):
+            with open(BACKUP_FILE, "r", encoding="utf-8") as f:
+                data = f.read().split("|")
+
+            await client(functions.account.UpdateProfileRequest(
+                first_name=data[0],
+                last_name=data[1]
+            ))
+
+        if os.path.exists(BACKUP_PHOTO):
+            file = await client.upload_file(BACKUP_PHOTO)
+            await client(functions.photos.UploadProfilePhotoRequest(file=file))
+
+        await event.edit("♻️ восстановлено")
+
+    # ===== FORMAT =====
+    elif cmd == "mirror":
+        mirror = args[1] == "on"
+        await event.edit(f"mirror {'ON' if mirror else 'OFF'}")
+
+    elif cmd == "bold":
+        bold = args[1] == "on"
+        await event.edit(f"bold {'ON' if bold else 'OFF'}")
+
+    elif cmd == "italic":
+        italic = args[1] == "on"
+        await event.edit(f"italic {'ON' if italic else 'OFF'}")
+
+    elif cmd == "mono":
+        mono = args[1] == "on"
+        await event.edit(f"mono {'ON' if mono else 'OFF'}")
+
+
+@client.on(events.NewMessage(outgoing=True))
+async def auto_format(event):
+    text = event.raw_text
+
+    if text.startswith(PREFIX):
+        return
+
+    new = text
+
+    if mirror:
+        new = new[::-1]
+    if bold:
+        new = f"**{new}**"
+    if italic:
+        new = f"__{new}__"
+    if mono:
+        new = f"`{new}`"
+
+    if new != text:
+        try:
+            await event.edit(new)
+        except:
+            pass
+
+
+print("🔥 Kryin UserBot V12 запущен")
 
 client.start()
 client.run_until_disconnected()
