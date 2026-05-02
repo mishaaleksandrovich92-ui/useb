@@ -8,10 +8,14 @@ api_hash = "7f7e062bcbec01fe3c02c7c898ce3cb7"
 client = TelegramClient("kryin_session", api_id, api_hash)
 
 PREFIX = "."
-VERSION = "7.0 ELITE"
+VERSION = "8.0 PRO"
 DEV = "@kryin"
 
 mirror = bold = italic = mono = False
+
+# ===== BACKUP =====
+BACKUP_FILE = "profile_backup.txt"
+BACKUP_PHOTO = "profile_backup.jpg"
 
 # ===== ПЛАГИНЫ =====
 if not os.path.exists("plugins"):
@@ -22,7 +26,7 @@ def gen_password(length=12):
     chars = string.ascii_letters + string.digits
     return ''.join(random.choice(chars) for _ in range(length))
 
-# ===== ВРЕМЯ БЕЗ PYTZ =====
+# ===== ВРЕМЯ =====
 cities = {
     "msk": 3,
     "kiev": 2,
@@ -31,8 +35,7 @@ cities = {
 }
 
 def get_time(offset):
-    utc = datetime.datetime.utcnow()
-    return utc + datetime.timedelta(hours=offset)
+    return datetime.datetime.utcnow() + datetime.timedelta(hours=offset)
 
 # ===== КОМАНДЫ =====
 @client.on(events.NewMessage(outgoing=True))
@@ -56,27 +59,25 @@ async def commands(event):
 ┗━━━━━━━━━━━━━━━━━━━┛
 
 📌 ОСНОВА
-└ `.ping` — отклик
-└ `.id` — id
+└ `.ping`
+└ `.id`
 
 🌍 СЕРВИСЫ
-└ `.time город` — время
-└ `.timelist` — список
+└ `.time город`
+└ `.timelist`
 
-📊 АНАЛИТИКА
-└ `.stat` — актив
+📊 ПРОФИЛЬ
+└ `.clone`
+└ `.back`
 
 🧠 ГЕНЕРАТОР
-└ `.genpass` — пароль
+└ `.genpass`
 
 🔊 МЕДИА
-└ `.tts текст` — голос
-
-👤 ПРОФИЛЬ
-└ `.clone` — копия
+└ `.tts текст`
 
 📦 ПЛАГИНЫ
-└ `.install` — установить .py
+└ `.install`
 """)
 
     elif cmd == "ping":
@@ -98,7 +99,7 @@ async def commands(event):
         await event.edit(f"🕒 {city.upper()} → {now.strftime('%H:%M:%S')}")
 
     elif cmd == "timelist":
-        txt = "🌍 Доступные города:\n\n"
+        txt = "🌍 Города:\n\n"
         for c in cities:
             txt += f"• {c}\n"
         await event.edit(txt)
@@ -110,10 +111,12 @@ async def commands(event):
         except:
             length = 12
 
+        password = gen_password(length)
+
         await event.edit(f"""🔐 Пароль
 
 ┏━━━━━━━━━━━━━━━┓
-{gen_password(length)}
+{password}
 ┗━━━━━━━━━━━━━━━┛
 """)
 
@@ -134,6 +137,21 @@ async def commands(event):
         if not event.is_reply:
             return await event.edit("ответь на юзера")
 
+        me = await client.get_me()
+
+        # --- backup name ---
+        with open(BACKUP_FILE, "w", encoding="utf-8") as f:
+            f.write(f"{me.first_name}|{me.last_name or ''}")
+
+        # --- backup photo ---
+        try:
+            photo = await client.download_profile_photo(me)
+            if photo:
+                os.rename(photo, BACKUP_PHOTO)
+        except:
+            pass
+
+        # --- clone ---
         reply = await event.get_reply_message()
         user = await client.get_entity(reply.sender_id)
 
@@ -143,14 +161,32 @@ async def commands(event):
         ))
 
         try:
-            await client.download_profile_photo(user, "ava.jpg")
-            await client(functions.photos.UploadProfilePhotoRequest(
-                file=await client.upload_file("ava.jpg")
-            ))
+            photo = await client.download_profile_photo(user)
+            if photo:
+                file = await client.upload_file(photo)
+                await client(functions.photos.UploadProfilePhotoRequest(file=file))
+                os.remove(photo)
         except:
             pass
 
-        await event.edit("✅ клонирован")
+        await event.edit("✅ клонирован (бэкап сохранён)")
+
+    # ===== BACK =====
+    elif cmd == "back":
+        if os.path.exists(BACKUP_FILE):
+            with open(BACKUP_FILE, "r", encoding="utf-8") as f:
+                data = f.read().split("|")
+
+            await client(functions.account.UpdateProfileRequest(
+                first_name=data[0],
+                last_name=data[1] if len(data) > 1 else ""
+            ))
+
+        if os.path.exists(BACKUP_PHOTO):
+            file = await client.upload_file(BACKUP_PHOTO)
+            await client(functions.photos.UploadProfilePhotoRequest(file=file))
+
+        await event.edit("♻️ профиль восстановлен")
 
     # ===== INSTALL =====
     elif cmd == "install":
@@ -160,12 +196,12 @@ async def commands(event):
         msg = await event.get_reply_message()
 
         if not msg.file or not msg.file.name.endswith(".py"):
-            return await event.edit("это не .py файл")
+            return await event.edit("это не .py")
 
         path = f"plugins/{msg.file.name}"
         await msg.download_media(path)
 
-        await event.edit(f"📦 установлен: {msg.file.name}\n(перезапусти бота)")
+        await event.edit(f"📦 установлен: {msg.file.name}")
 
     # ===== ФОРМАТ =====
     elif cmd == "mirror":
@@ -204,7 +240,7 @@ async def auto_format(event):
             await event.edit(txt)
 
 
-print("🔥 Kryin UserBot V7 запущен")
+print("🔥 Kryin UserBot V8 PRO запущен")
 
 client.start()
 client.run_until_disconnected()
