@@ -1,6 +1,6 @@
 from telethon import TelegramClient, events
 from gtts import gTTS
-import random, string, datetime, os, importlib
+import random, string, os, importlib
 from collections import Counter
 
 api_id = 27557328
@@ -9,7 +9,7 @@ api_hash = "7f7e062bcbec01fe3c02c7c898ce3cb7"
 client = TelegramClient("kryin_session", api_id, api_hash)
 
 PREFIX = "."
-VERSION = "3.1 ULTRA"
+VERSION = "3.2 ULTRA"
 DEV = "@kryin"
 
 mirror = bold = italic = mono = False
@@ -23,18 +23,23 @@ def load_plugins():
 
     for file in os.listdir("plugins"):
         if file.endswith(".py"):
-            name = file[:-3]
             try:
+                name = file[:-3]
                 module = importlib.import_module(f"plugins.{name}")
                 PLUGINS[name] = module
             except Exception as e:
-                print(f"Ошибка плагина {name}: {e}")
+                print("plugin error:", e)
 
 load_plugins()
 
-# ===== ГЕНЕРАТОР =====
-def gen_pass():
-    return ''.join(random.choice(string.ascii_letters+string.digits) for _ in range(10))
+# ===== ГЕНЕРАТОРЫ =====
+def gen_password(length=12):
+    chars = string.ascii_letters + string.digits
+    return ''.join(random.choice(chars) for _ in range(length))
+
+def gen_nicks():
+    letters = string.ascii_lowercase
+    return [''.join(random.choice(letters) for _ in range(5)) for _ in range(5)]
 
 # ===== КОМАНДЫ =====
 @client.on(events.NewMessage(outgoing=True))
@@ -50,8 +55,7 @@ async def commands(event):
 
     # ===== HELP =====
     if cmd == "help":
-        return await event.edit(
-f"""⚡ Kryin UserBot ⚡
+        return await event.edit(f"""⚡ Kryin UserBot ⚡
 
 ┌───────────────────
 👑 Версия: {VERSION}
@@ -59,22 +63,18 @@ f"""⚡ Kryin UserBot ⚡
 └───────────────────
 
 📌 ОСНОВА
-• `.ping` — пинг
-• `.id` — id чата
+• `.ping`
+• `.id`
 
 📊 АНАЛИТИКА
-• `.stat` — актив + слова
-
-🧩 ПЛАГИНЫ
-• `.plugins` — список
-• `.install` — установить
-• `.uninstall 1` — удалить
+• `.stat`
 
 🧠 ГЕНЕРАТОРЫ
-• `.genpass` — пароль
+• `.genpass`
+• `.nickgen`
 
 🔊 МЕДИА
-• `.tts текст` — озвучка
+• `.tts текст`
 
 🎨 ФОРМАТ
 • `.mirror on/off`
@@ -83,27 +83,50 @@ f"""⚡ Kryin UserBot ⚡
 • `.mono on/off`
 
 🕵️ ЛОГГЕР
-• удаление сообщений
-• правка сообщений
-
-⚙️ СИСТЕМА
-• работает 24/7 🚀
-"""
-        )
+• авто в ЛС
+""")
 
     # ===== ОСНОВА =====
     elif cmd == "ping":
         await event.edit("🏓 Pong")
 
     elif cmd == "id":
-        await event.edit(f"{event.chat_id}")
+        await event.edit(str(event.chat_id))
+
+    # ===== GENPASS =====
+    elif cmd == "genpass":
+        try:
+            length = int(args[1]) if len(args) > 1 else 12
+        except:
+            length = 12
+
+        password = gen_password(length)
+
+        await event.edit(f"""🔐 Генератор пароля
+
+┌───────────────
+Пароль:
+{password}
+└───────────────
+""")
+
+    # ===== NICKGEN =====
+    elif cmd == "nickgen":
+        nicks = gen_nicks()
+
+        txt = "🧠 Генератор ников\n\n┌───────────────\n"
+        for n in nicks:
+            txt += f"{n}\n"
+        txt += "└───────────────"
+
+        await event.edit(txt)
 
     # ===== STAT =====
     elif cmd == "stat":
         users = Counter()
         words = Counter()
 
-        async for m in client.iter_messages(event.chat_id, limit=500):
+        async for m in client.iter_messages(event.chat_id, limit=300):
             if m.sender_id:
                 sender = await m.get_sender()
                 name = f"@{sender.username}" if sender.username else sender.first_name
@@ -114,51 +137,28 @@ f"""⚡ Kryin UserBot ⚡
                     if len(w) > 3:
                         words[w] += 1
 
-        txt = "📊 Статистика чата\n\n"
-
-        txt += "👥 Топ людей:\n"
+        txt = "📊 Статистика\n\n👥 Люди:\n"
         for i,(u,c) in enumerate(users.most_common(5),1):
             txt += f"{i}. {u} — {c}\n"
 
-        txt += "\n💬 Частые слова:\n"
+        txt += "\n💬 Слова:\n"
         for w,c in words.most_common(5):
-            txt += f"• {w} — {c}\n"
+            txt += f"{w} — {c}\n"
 
         await event.edit(txt)
 
-    # ===== ПЛАГИНЫ =====
-    elif cmd == "plugins":
-        if not PLUGINS:
-            return await event.edit("❌ нет плагинов")
+    # ===== TTS =====
+    elif cmd == "tts":
+        if len(args) < 2:
+            return await event.edit("❌ напиши текст")
 
-        txt = "🧩 Плагины:\n\n"
-        for i,p in enumerate(PLUGINS,1):
-            txt += f"{i}. {p}\n"
+        text_tts = text.replace(".tts ", "")
+        t = gTTS(text_tts, lang="ru")
+        t.save("voice.mp3")
 
-        await event.edit(txt)
-
-    elif cmd == "install":
-        if not event.is_reply:
-            return await event.edit("❌ ответь на файл")
-
-        msg = await event.get_reply_message()
-        path = await msg.download_media("plugins/")
-
-        name = os.path.basename(path)[:-3]
-        module = importlib.import_module(f"plugins.{name}")
-        PLUGINS[name] = module
-
-        await event.edit(f"✅ установлен {name}")
-
-    elif cmd == "uninstall":
-        try:
-            i = int(args[1]) - 1
-            name = list(PLUGINS.keys())[i]
-            del PLUGINS[name]
-            os.remove(f"plugins/{name}.py")
-            await event.edit(f"🗑 удален {name}")
-        except:
-            await event.edit("❌ ошибка")
+        await client.send_file(event.chat_id, "voice.mp3")
+        os.remove("voice.mp3")
+        await event.delete()
 
     # ===== ФОРМАТ =====
     elif cmd == "mirror":
@@ -177,24 +177,14 @@ f"""⚡ Kryin UserBot ⚡
         mono = args[1] == "on"
         await event.edit("включено" if mono else "выключено")
 
-    # ===== TTS =====
-    elif cmd == "tts":
-        t = gTTS(text.replace(".tts ",""), lang="ru")
-        t.save("voice.mp3")
-        await client.send_file(event.chat_id, "voice.mp3")
-        os.remove("voice.mp3")
-        await event.delete()
-
 
 # ===== ЛОГГЕР =====
 @client.on(events.NewMessage)
 async def logger(event):
     if event.is_private and not event.out:
         msg_cache[event.id] = event.raw_text
-
         if len(msg_cache) > 500:
             msg_cache.pop(next(iter(msg_cache)))
-
 
 @client.on(events.MessageDeleted)
 async def del_log(event):
@@ -205,9 +195,8 @@ async def del_log(event):
         if i in msg_cache:
             await client.send_message(
                 event.chat_id,
-                f"🗑 Kryin заметил удаление\n📜 {msg_cache[i]}"
+                f"🗑 Удалено сообщение:\n{msg_cache[i]}"
             )
-
 
 @client.on(events.MessageEdited)
 async def edit_log(event):
@@ -218,7 +207,7 @@ async def edit_log(event):
     new = event.raw_text
 
     await event.reply(
-        f"✏️ Изменение сообщения\n📜 Было: {old}\n✅ Стало: {new}"
+        f"✏️ Изменено\n\nБыло:\n{old}\n\nСтало:\n{new}"
     )
 
     msg_cache[event.id] = new
