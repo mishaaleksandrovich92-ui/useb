@@ -9,18 +9,14 @@ api_hash = "7f7e062bcbec01fe3c02c7c898ce3cb7"
 client = TelegramClient("kryin_session", api_id, api_hash)
 
 PREFIX = "."
-VERSION = "3.0 PRIVATE"
+VERSION = "3.1 ULTRA"
 DEV = "@kryin"
 
 mirror = bold = italic = mono = False
-last_seen = {}
-
-# ===== КЭШ ДЛЯ ЛОГГЕРА =====
 msg_cache = {}
-
-# ===== ПЛАГИНЫ =====
 PLUGINS = {}
 
+# ===== ПЛАГИНЫ =====
 def load_plugins():
     if not os.path.exists("plugins"):
         os.mkdir("plugins")
@@ -36,14 +32,13 @@ def load_plugins():
 
 load_plugins()
 
-# ===== ГЕН =====
+# ===== ГЕНЕРАТОР =====
 def gen_pass():
     return ''.join(random.choice(string.ascii_letters+string.digits) for _ in range(10))
 
-
 # ===== КОМАНДЫ =====
 @client.on(events.NewMessage(outgoing=True))
-async def cmd(event):
+async def commands(event):
     global mirror, bold, italic, mono
 
     text = event.raw_text
@@ -51,46 +46,60 @@ async def cmd(event):
         return
 
     args = text.split()
-    c = args[0][1:]
+    cmd = args[0][1:]
 
     # ===== HELP =====
-    if c == "help":
+    if cmd == "help":
         return await event.edit(
-            f"⚡ **Kryin UserBot**\n"
-            f"👑 Версия: {VERSION}\n"
-            f"👨‍💻 Разраб: {DEV}\n\n"
+f"""⚡ Kryin UserBot ⚡
 
-            f"📌 **ОСНОВА**\n"
-            f"`.ping` — проверить бота\n"
-            f"`.id` — id чата\n\n"
+┌───────────────────
+👑 Версия: {VERSION}
+🤖 Разраб: {DEV}
+└───────────────────
 
-            f"📊 **АНАЛИТИКА**\n"
-            f"`.stat` — актив + слова\n\n"
+📌 ОСНОВА
+• `.ping` — пинг
+• `.id` — id чата
 
-            f"🛠 **СИСТЕМА**\n"
-            f"`.plugins` — список модулей\n"
-            f"`.install` — установить\n"
-            f"`.uninstall 1` — удалить\n\n"
+📊 АНАЛИТИКА
+• `.stat` — актив + слова
 
-            f"🎨 **ФОРМАТ**\n"
-            f"`.mirror on/off`\n"
-            f"`.bold on/off`\n"
-            f"`.italic on/off`\n"
-            f"`.mono on/off`\n\n"
+🧩 ПЛАГИНЫ
+• `.plugins` — список
+• `.install` — установить
+• `.uninstall 1` — удалить
 
-            f"🔊 **МЕДИА**\n"
-            f"`.tts текст`\n"
+🧠 ГЕНЕРАТОРЫ
+• `.genpass` — пароль
+
+🔊 МЕДИА
+• `.tts текст` — озвучка
+
+🎨 ФОРМАТ
+• `.mirror on/off`
+• `.bold on/off`
+• `.italic on/off`
+• `.mono on/off`
+
+🕵️ ЛОГГЕР
+• удаление сообщений
+• правка сообщений
+
+⚙️ СИСТЕМА
+• работает 24/7 🚀
+"""
         )
 
     # ===== ОСНОВА =====
-    elif c == "ping":
-        return await event.edit("🏓 Pong")
+    elif cmd == "ping":
+        await event.edit("🏓 Pong")
 
-    elif c == "id":
-        return await event.edit(f"`{event.chat_id}`")
+    elif cmd == "id":
+        await event.edit(f"{event.chat_id}")
 
     # ===== STAT =====
-    elif c == "stat":
+    elif cmd == "stat":
         users = Counter()
         words = Counter()
 
@@ -98,37 +107,37 @@ async def cmd(event):
             if m.sender_id:
                 sender = await m.get_sender()
                 name = f"@{sender.username}" if sender.username else sender.first_name
-                users[name]+=1
+                users[name] += 1
 
             if m.text:
                 for w in m.text.lower().split():
                     if len(w) > 3:
-                        words[w]+=1
+                        words[w] += 1
 
-        text = "📊 **СТАТИСТИКА ЧАТА**\n\n"
+        txt = "📊 Статистика чата\n\n"
 
-        text += "👥 **ТОП ЛЮДЕЙ:**\n"
-        for i,(u,cnt) in enumerate(users.most_common(5),1):
-            text += f"{i}. {u} — `{cnt}`\n"
+        txt += "👥 Топ людей:\n"
+        for i,(u,c) in enumerate(users.most_common(5),1):
+            txt += f"{i}. {u} — {c}\n"
 
-        text += "\n💬 **ЧАСТЫЕ СЛОВА:**\n"
-        for w,cnt in words.most_common(5):
-            text += f"• `{w}` — {cnt}\n"
+        txt += "\n💬 Частые слова:\n"
+        for w,c in words.most_common(5):
+            txt += f"• {w} — {c}\n"
 
-        return await event.edit(text)
+        await event.edit(txt)
 
     # ===== ПЛАГИНЫ =====
-    elif c == "plugins":
+    elif cmd == "plugins":
         if not PLUGINS:
             return await event.edit("❌ нет плагинов")
 
-        txt = "🧩 **ПЛАГИНЫ:**\n\n"
+        txt = "🧩 Плагины:\n\n"
         for i,p in enumerate(PLUGINS,1):
-            txt += f"{i}. `{p}`\n"
+            txt += f"{i}. {p}\n"
 
-        return await event.edit(txt)
+        await event.edit(txt)
 
-    elif c == "install":
+    elif cmd == "install":
         if not event.is_reply:
             return await event.edit("❌ ответь на файл")
 
@@ -139,41 +148,41 @@ async def cmd(event):
         module = importlib.import_module(f"plugins.{name}")
         PLUGINS[name] = module
 
-        return await event.edit(f"✅ установлен `{name}`")
+        await event.edit(f"✅ установлен {name}")
 
-    elif c == "uninstall":
+    elif cmd == "uninstall":
         try:
             i = int(args[1]) - 1
             name = list(PLUGINS.keys())[i]
             del PLUGINS[name]
             os.remove(f"plugins/{name}.py")
-            return await event.edit(f"🗑 удален `{name}`")
+            await event.edit(f"🗑 удален {name}")
         except:
-            return await event.edit("❌ ошибка")
+            await event.edit("❌ ошибка")
 
     # ===== ФОРМАТ =====
-    elif c == "mirror":
-        mirror=args[1]=="on"
-        await event.edit("ON" if mirror else "OFF")
+    elif cmd == "mirror":
+        mirror = args[1] == "on"
+        await event.edit("включено" if mirror else "выключено")
 
-    elif c == "bold":
-        bold=args[1]=="on"
-        await event.edit("ON" if bold else "OFF")
+    elif cmd == "bold":
+        bold = args[1] == "on"
+        await event.edit("включено" if bold else "выключено")
 
-    elif c == "italic":
-        italic=args[1]=="on"
-        await event.edit("ON" if italic else "OFF")
+    elif cmd == "italic":
+        italic = args[1] == "on"
+        await event.edit("включено" if italic else "выключено")
 
-    elif c == "mono":
-        mono=args[1]=="on"
-        await event.edit("ON" if mono else "OFF")
+    elif cmd == "mono":
+        mono = args[1] == "on"
+        await event.edit("включено" if mono else "выключено")
 
     # ===== TTS =====
-    elif c == "tts":
-        t=gTTS(text.replace(".tts ",""),lang="ru")
-        t.save("v.mp3")
-        await client.send_file(event.chat_id,"v.mp3")
-        os.remove("v.mp3")
+    elif cmd == "tts":
+        t = gTTS(text.replace(".tts ",""), lang="ru")
+        t.save("voice.mp3")
+        await client.send_file(event.chat_id, "voice.mp3")
+        os.remove("voice.mp3")
         await event.delete()
 
 
@@ -186,9 +195,6 @@ async def logger(event):
         if len(msg_cache) > 500:
             msg_cache.pop(next(iter(msg_cache)))
 
-        if event.sender_id:
-            last_seen[event.sender_id]=datetime.datetime.now()
-
 
 @client.on(events.MessageDeleted)
 async def del_log(event):
@@ -199,8 +205,7 @@ async def del_log(event):
         if i in msg_cache:
             await client.send_message(
                 event.chat_id,
-                f"🗑 **Kryin задетектил удаление!**\n"
-                f"📜 `{msg_cache[i]}`"
+                f"🗑 Kryin заметил удаление\n📜 {msg_cache[i]}"
             )
 
 
@@ -213,30 +218,28 @@ async def edit_log(event):
     new = event.raw_text
 
     await event.reply(
-        f"✏️ **Kryin задетектил правку!**\n"
-        f"📜 Было: `{old}`\n"
-        f"✅ Стало: `{new}`"
+        f"✏️ Изменение сообщения\n📜 Было: {old}\n✅ Стало: {new}"
     )
 
     msg_cache[event.id] = new
 
 
-# ===== АВТО =====
+# ===== АВТО-ФОРМАТ =====
 @client.on(events.NewMessage)
 async def auto(event):
     if event.out and not event.raw_text.startswith(PREFIX):
-        txt=event.raw_text
+        txt = event.raw_text
 
-        if mirror: txt=txt[::-1]
-        if bold: txt=f"**{txt}**"
-        if italic: txt=f"__{txt}__"
-        if mono: txt=f"`{txt}`"
+        if mirror: txt = txt[::-1]
+        if bold: txt = f"**{txt}**"
+        if italic: txt = f"__{txt}__"
+        if mono: txt = f"`{txt}`"
 
-        if txt!=event.raw_text:
+        if txt != event.raw_text:
             await event.edit(txt)
 
 
-print("🔥 KRYIN USERBOT V3 PRIVATE")
+print("🔥 Kryin UserBot запущен")
 
 client.start()
 client.run_until_disconnected()
